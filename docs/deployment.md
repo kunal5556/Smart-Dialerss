@@ -35,7 +35,8 @@ repository, then set these environment variables in the Render dashboard:
 | Variable | Purpose | Set where |
 |---|---|---|
 | `MONGODB_URI` | Atlas connection string | Render dashboard (secret) |
-| `MONGODB_DB_NAME` | Database name, `smartdialer` | render.yaml |
+| `MONGODB_DB_NAME` | Database name, `smartdialer`. Simulations use `smartdialer_simulation` | render.yaml |
+| `DECISION_RETENTION_MINUTES` | TTL on pacing/safety decision records, `1440` | render.yaml |
 | `API_KEY` | Shared secret for mutating endpoints | Render dashboard (secret) |
 | `MONGO_MAX_POOL_SIZE` | Motor pool size, `20` — Atlas M0 caps connections | render.yaml |
 | `LOG_LEVEL` | `INFO` in production, so borrower data volume stays low | render.yaml |

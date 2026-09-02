@@ -86,7 +86,13 @@ class CallAllocator:
                 continue
 
             consecutive_contentions = 0
-            if await self._dial(campaign, pair):
+            try:
+                dialled = await self._dial(campaign, pair)
+            except asyncio.CancelledError:
+                await self._compensate_cancelled_dial(campaign, pair)
+                raise
+
+            if dialled:
                 allocated += 1
             else:
                 failed += 1
@@ -255,3 +261,35 @@ class CallAllocator:
 
     async def _release(self, pair: ReservationPair, outcome: BorrowerReleaseOutcome) -> None:
         await self._reservations.release_pair(pair, outcome)
+
+    async def _compensate_cancelled_dial(
+        self,
+        campaign: Campaign,
+        pair: ReservationPair,
+    ) -> None:
+        try:
+            await asyncio.shield(self._release(pair, BorrowerReleaseOutcome.RELEASED))
+        except asyncio.CancelledError:
+            pass
+        except PyMongoError as error:
+            log_event(
+                logger,
+                logging.ERROR,
+                "cancelled_dial_release_failed",
+                f"Could not release a cancelled dial, the lease will expire instead: {error}",
+                campaign_id=campaign.id,
+                agent_id=pair.agent.id,
+                borrower_id=pair.borrower.id,
+                worker_id=pair.worker_id,
+            )
+        else:
+            log_event(
+                logger,
+                logging.WARNING,
+                "cancelled_dial_released",
+                "Dial was cancelled mid-flight, agent and borrower were released",
+                campaign_id=campaign.id,
+                agent_id=pair.agent.id,
+                borrower_id=pair.borrower.id,
+                worker_id=pair.worker_id,
+            )

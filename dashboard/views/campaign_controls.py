@@ -7,6 +7,7 @@ MODES = ["PROGRESSIVE", "PREDICTIVE"]
 
 def render(client: SmartDialerClient, campaign: dict) -> None:
     st.subheader("Campaign")
+    campaign = _refreshed(client, campaign)
     columns = st.columns(4)
     columns[0].metric("Status", campaign["status"])
     columns[1].metric("Mode", campaign["dialing_mode"])
@@ -43,6 +44,13 @@ def render(client: SmartDialerClient, campaign: dict) -> None:
                 lambda: client.seed_campaign(campaign["id"], int(agents), int(borrowers)),
                 "Demo data created",
             )
+
+
+def _refreshed(client: SmartDialerClient, campaign: dict) -> dict:
+    try:
+        return client.get_campaign(campaign["id"])
+    except ApiError:
+        return campaign
 
 
 def _run(action, success_message: str) -> None:

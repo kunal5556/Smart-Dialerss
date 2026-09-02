@@ -22,6 +22,8 @@ services:
       - key: RECOVERY_ENABLED
         value: "true"
       - key: CORS_ORIGINS
-        value: https://smartdialer-api.onrender.com
+        sync: false
       - key: MONGO_MAX_POOL_SIZE
         value: "20"
+      - key: DECISION_RETENTION_MINUTES
+        value: "1440"

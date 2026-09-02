@@ -68,6 +68,7 @@ class SafetyController:
         campaign: Campaign,
         request: PacingRequest,
         pacing_decision_id: str | None = None,
+        persist: bool = True,
     ) -> SafetyDecision:
         try:
             decision = await self._evaluate(campaign, request, pacing_decision_id)
@@ -92,7 +93,8 @@ class SafetyController:
                 pacing_decision_id=pacing_decision_id,
             )
 
-        await self._persist(decision)
+        if persist:
+            await self._persist(decision)
         return decision
 
     async def _evaluate(

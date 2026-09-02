@@ -6,6 +6,8 @@ from app.config import get_settings
 _client: AsyncIOMotorClient | None = None
 _database: AsyncIOMotorDatabase | None = None
 
+SIMULATION_DB_SUFFIX = "_simulation"
+
 
 class DatabaseNotConnectedError(RuntimeError):
     pass
@@ -39,6 +41,12 @@ def get_db() -> AsyncIOMotorDatabase:
     if _database is None:
         raise DatabaseNotConnectedError("Database is not connected. Call connect() first.")
     return _database
+
+
+def get_simulation_db() -> AsyncIOMotorDatabase:
+    if _client is None:
+        raise DatabaseNotConnectedError("Database is not connected. Call connect() first.")
+    return _client[f"{get_settings().MONGODB_DB_NAME}{SIMULATION_DB_SUFFIX}"]
 
 
 async def ping() -> bool:

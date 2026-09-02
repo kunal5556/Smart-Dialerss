@@ -3,7 +3,7 @@ import asyncio
 import sys
 
 from app.config import get_settings
-from app.db import connect, disconnect, get_db
+from app.db import connect, disconnect, get_simulation_db
 from app.db_indexes import ensure_indexes
 from app.logging_config import configure_logging
 from app.models.enums import DialingMode
@@ -37,7 +37,7 @@ async def run(args: argparse.Namespace) -> list[SimulationReport]:
     configure_logging()
     await connect()
     try:
-        database = get_db()
+        database = get_simulation_db()
         await ensure_indexes(database)
         engine = SimulationEngine(database, get_settings())
 

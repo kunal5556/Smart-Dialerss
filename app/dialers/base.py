@@ -50,13 +50,21 @@ class DialerBase:
     async def tick(self, campaign: Campaign, worker_id: str) -> TickResult:
         snapshot = await self._snapshots.build_snapshot(campaign)
         request = compute_request(snapshot, self.engine_config())
-        pacing_decision = await self._decisions.record_pacing_request(campaign.id, request)
-        decision = await self._safety.evaluate(campaign, request, pacing_decision.id)
+        idle = request.requested == 0
+
+        pacing_decision_id = None
+        if not idle:
+            pacing_decision = await self._decisions.record_pacing_request(campaign.id, request)
+            pacing_decision_id = pacing_decision.id
+
+        decision = await self._safety.evaluate(
+            campaign, request, pacing_decision_id, persist=not idle
+        )
         allocation = await self._allocator.allocate(campaign, decision, worker_id)
 
         log_event(
             logger,
-            logging.INFO,
+            logging.DEBUG if idle else logging.INFO,
             "dialer_tick",
             f"{campaign.dialing_mode.value} tick requested {request.requested}, "
             f"approved {decision.approved}, allocated {allocation.allocated}",

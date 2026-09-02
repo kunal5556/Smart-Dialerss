@@ -14,6 +14,8 @@ from app.workers.worker_identity import get_worker_id
 
 logger = logging.getLogger(__name__)
 
+GRACEFUL_STOP_SECONDS = 15.0
+
 
 class DialerWorker:
     def __init__(
@@ -30,24 +32,30 @@ class DialerWorker:
         self._wrap_up = wrap_up_service
         self._settings = settings
         self._task: asyncio.Task | None = None
+        self._stopping = asyncio.Event()
 
     def start(self) -> None:
         if self._task is not None:
             return
+        self._stopping.clear()
         self._task = asyncio.create_task(self._run())
 
     async def stop(self) -> None:
         if self._task is None:
             return
-        self._task.cancel()
+        self._stopping.set()
         try:
-            await self._task
-        except asyncio.CancelledError:
-            pass
+            await asyncio.wait_for(self._task, timeout=GRACEFUL_STOP_SECONDS)
+        except (asyncio.TimeoutError, asyncio.CancelledError):
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
         self._task = None
 
     async def _run(self) -> None:
-        while True:
+        while not self._stopping.is_set():
             try:
                 await self.run_once()
             except asyncio.CancelledError:
@@ -59,7 +67,12 @@ class DialerWorker:
                     "dialer_tick_failed",
                     f"Dialer tick raised an error, continuing: {error}",
                 )
-            await asyncio.sleep(self._settings.DIALER_TICK_SECONDS)
+            try:
+                await asyncio.wait_for(
+                    self._stopping.wait(), timeout=self._settings.DIALER_TICK_SECONDS
+                )
+            except asyncio.TimeoutError:
+                continue
 
     async def run_once(self) -> None:
         worker_id = get_worker_id()

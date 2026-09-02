@@ -8,9 +8,8 @@ from pymongo.errors import OperationFailure, PyMongoError
 
 from app import __version__
 from app.api import register_api
-from app.db import get_db
 from app.config import Settings, get_settings
-from app.db import connect, disconnect, ping
+from app.db import connect, disconnect, get_simulation_db, ping
 from app.db_indexes import ensure_indexes
 from app.dialers.mode_router import ModeRouter
 from app.dialers.predictive_dialer import PredictiveDialer
@@ -39,7 +38,8 @@ from app.services.retry_service import RetryService
 from app.services.wrap_up_service import WrapUpService
 from app.workers.dialer_worker import DialerWorker
 from app.simulation.fault_injector import FaultInjector
-from app.simulation.runner import SimulationRunner
+from app.repositories.simulation_run_repo import SimulationRunRepository
+from app.simulation.runner import SimulationRunner, stop_orphaned_simulation_campaigns
 from app.workers.recovery_worker import RecoveryWorker
 
 logger = logging.getLogger(__name__)
@@ -121,7 +121,9 @@ def build_runtime(app: FastAPI, settings: Settings) -> None:
     app.state.decision_repository = decisions
     app.state.metrics_repository = MetricsRepository()
     app.state.fault_injector = FaultInjector(registry, events, event_processor)
-    app.state.simulation_runner = SimulationRunner(get_db(), settings)
+    app.state.simulation_runner = SimulationRunner(
+        get_simulation_db(), settings, SimulationRunRepository()
+    )
     app.state.metrics_registry = registry_counters
     app.state.metrics_collector = metrics_collector
     app.state.metrics_sampler = MetricsSampler(
@@ -181,6 +183,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         "startup_providers_ready",
         f"Registered providers: {', '.join(app.state.provider_registry.names())}",
     )
+
+    await app.state.simulation_runner.reconcile()
+    await stop_orphaned_simulation_campaigns(get_simulation_db())
 
     if settings.DIALER_ENABLED:
         app.state.dialer_worker.start()

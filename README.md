@@ -1,4 +1,4 @@
-# SmartDialer
+# Smart Dialer
 
 A safe, concurrency-aware outbound dialing system for collections agents.
 
@@ -428,6 +428,7 @@ MongoDB is the **single authoritative source of truth**. There is no cache, deli
 | `safety_decisions` | requested vs approved, all constraints, binding one | `(campaign_id, created_at)` |
 | `metrics_samples` | periodic campaign snapshots | TTL index for retention |
 | `provider_health_samples` | health history | `(provider_name, computed_at)` |
+| `simulation_runs` | run history, status and final report | `started_at` desc, `status` |
 
 Ignored events are stored too, with their reason. "We saw it and chose to ignore it" is far more
 defensible than silence.
@@ -477,6 +478,13 @@ Run a simulation from the command line:
 python -m scripts.run_simulation --scenario A --mode both --duration 600 --agents 10
 ```
 
+Simulations seed and clear their own database (`<MONGODB_DB_NAME>_simulation`), so running one
+never disturbs live campaign data.
+
+Keep `--time-scale` modest. The scale compresses the simulated timeline but not real round trips
+to the database or the provider, so `--duration 60 --time-scale 60` gives the run **one wall-clock
+second** — less than a single dialer tick — and measures nothing useful.
+
 ---
 
 ## Environment variables and secrets
@@ -486,12 +494,13 @@ Backend (`.env`, see `.env.example` for the full list with safe defaults):
 | Variable | Purpose |
 |---|---|
 | `MONGODB_URI` | **Required.** Connection string. No default — the app fails loudly without it |
-| `MONGODB_DB_NAME` | Database name |
+| `MONGODB_DB_NAME` | Database name. Simulations never touch it — they run against `<name>_simulation` |
 | `MONGO_MAX_POOL_SIZE` | Motor pool size; keep low on Atlas M0 |
 | `API_KEY` | Shared secret for mutating endpoints; auth is off when empty |
 | `CORS_ORIGINS` | For direct browser use of `/docs` only — *not* what makes the dashboard work |
 | `DIALER_ENABLED` / `RECOVERY_ENABLED` | Start the background loops |
 | `LOG_LEVEL` | `INFO` in production |
+| `METRICS_RETENTION_MINUTES` / `DECISION_RETENTION_MINUTES` | TTL on sampled metrics and on pacing/safety decision records |
 | Tuning | `RESERVATION_TTL_SECONDS`, `SAFETY_MARGIN`, `MIN/MAX_ANSWER_RATE`, `MAX_REQUEST_PER_TICK`, … |
 
 Dashboard (`dashboard/.streamlit/secrets.toml`, see `secrets.toml.example`):
@@ -620,8 +629,16 @@ presentation-only boundary a deployment fact rather than a convention.
 post-deploy smoke checklist and the free-tier caveats are in
 [docs/deployment.md](docs/deployment.md).
 
-**Public URL:** _to be filled in after deployment_ — the deployment steps are documented and the
-configuration is committed, but the live URL is not yet provisioned.
+**Public URLs:**
+
+| Service | URL |
+|---|---|
+| Dashboard | https://smartdialer-dashboard.onrender.com |
+| API | https://smartdialer-api-8di8.onrender.com |
+| API docs | https://smartdialer-api-8di8.onrender.com/docs |
+
+Both run on Render free instances, which sleep when idle — the first request after a quiet period
+takes roughly a minute to wake the service.
 
 ---
 

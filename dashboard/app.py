@@ -109,17 +109,17 @@ def main() -> None:
         _live(auto_refresh, agent_panel.render, client, campaign["id"])
 
     with tabs[2]:
-        guarded(calls_view.render, client, campaign["id"])
+        _live(auto_refresh, calls_view.render, client, campaign["id"])
 
     with tabs[3]:
         _live(auto_refresh, pacing_panel.render, client, campaign["id"])
         _live(auto_refresh, safety_panel.render, client, campaign["id"])
 
     with tabs[4]:
-        guarded(provider_panel.render, client)
+        _live(auto_refresh, provider_panel.render, client)
 
     with tabs[5]:
-        guarded(simulation_panel.render, client)
+        _live(auto_refresh, simulation_panel.render, client)
 
     with tabs[6]:
         guarded(fault_panel.render, client, campaign["id"])

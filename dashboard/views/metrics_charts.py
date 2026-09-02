@@ -43,7 +43,7 @@ def render(client: SmartDialerClient, campaign_id: str) -> None:
         return
 
     frame = pd.DataFrame(history)
-    frame["collected_at"] = pd.to_datetime(frame["collected_at"])
+    frame["collected_at"] = pd.to_datetime(frame["collected_at"], format="ISO8601")
     frame = frame.set_index("collected_at")
 
     st.caption("Utilization over time")

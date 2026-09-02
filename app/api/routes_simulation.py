@@ -6,28 +6,28 @@ from app.api.dependencies import enforce_fault_cooldown, require_api_key
 from app.api.errors import ConflictError, NotFoundError
 from app.api.routes_metrics import to_response
 from app.api.schemas import FaultRequest, FaultResponse, SimulationRequest, SimulationStatus
+from app.metrics.campaign_metrics import CampaignMetrics
 from app.simulation.agent_simulator import AgentSimulator
 from app.simulation.config import SimulationConfig
 from app.simulation.fault_injector import AVAILABLE_FAULTS
-from app.simulation.runner import SimulationRun
 from app.simulation.scenarios import SCENARIO_NAMES, build_scenario
 
 router = APIRouter(prefix="/api/simulations", tags=["simulations"])
 
 
-def to_status(run: SimulationRun) -> SimulationStatus:
-    report = run.report
+def to_status(run: dict) -> SimulationStatus:
+    metrics = run.get("metrics")
     return SimulationStatus(
-        id=run.id,
-        scenario=run.config.name,
-        dialing_mode=run.config.dialing_mode.value,
-        status=run.status,
-        started_at=run.started_at,
-        finished_at=run.finished_at,
-        passed=report.passed if report is not None else None,
-        violations=[violation.name for violation in report.violations] if report else [],
-        error=run.error,
-        metrics=to_response(report.metrics) if report and report.metrics else None,
+        id=run["_id"],
+        scenario=run["scenario"],
+        dialing_mode=run["dialing_mode"],
+        status=run["status"],
+        started_at=run["started_at"],
+        finished_at=run["finished_at"],
+        passed=run["passed"],
+        violations=run["violations"],
+        error=run["error"],
+        metrics=to_response(CampaignMetrics(**metrics)) if metrics else None,
     )
 
 
@@ -48,7 +48,7 @@ async def start_simulation(payload: SimulationRequest, request: Request) -> Simu
     config = replace(config, worker_count=payload.workers)
 
     try:
-        run = request.app.state.simulation_runner.start(config)
+        run = await request.app.state.simulation_runner.start(config)
     except RuntimeError as error:
         raise ConflictError(str(error)) from error
     return to_status(run)
@@ -56,12 +56,13 @@ async def start_simulation(payload: SimulationRequest, request: Request) -> Simu
 
 @router.get("", response_model=list[SimulationStatus])
 async def list_simulations(request: Request) -> list[SimulationStatus]:
-    return [to_status(run) for run in request.app.state.simulation_runner.history()]
+    runs = await request.app.state.simulation_runner.history()
+    return [to_status(run) for run in runs]
 
 
 @router.get("/{simulation_id}", response_model=SimulationStatus)
 async def get_simulation(simulation_id: str, request: Request) -> SimulationStatus:
-    run = request.app.state.simulation_runner.get(simulation_id)
+    run = await request.app.state.simulation_runner.get(simulation_id)
     if run is None:
         raise NotFoundError("simulation", simulation_id)
     return to_status(run)

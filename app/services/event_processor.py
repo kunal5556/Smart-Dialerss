@@ -12,6 +12,7 @@ from app.repositories.call_repo import CallRepository
 from app.repositories.event_repo import EventRecordResult, EventRepository
 from app.services.retry_service import RetryService
 from app.state_machines.agent_sm import TransitionActor
+from app.state_machines.errors import StateMachineError
 from app.state_machines.call_sm import (
     EventApplicability,
     agent_state_for_call_state,
@@ -144,13 +145,17 @@ class EventProcessor:
                 self._log_agent_anomaly(call, agent.state, agent_state)
             return
 
-        updated = await self._agents.transition_agent(
-            agent_id=agent.id,
-            from_state=agent.state,
-            to_state=agent_state,
-            actor=TransitionActor.EVENT_PROCESSOR,
-            expected_version=agent.state_version,
-        )
+        try:
+            updated = await self._agents.transition_agent(
+                agent_id=agent.id,
+                from_state=agent.state,
+                to_state=agent_state,
+                actor=TransitionActor.EVENT_PROCESSOR,
+                expected_version=agent.state_version,
+            )
+        except StateMachineError:
+            self._log_agent_anomaly(call, agent.state, agent_state)
+            return
         if updated is None:
             self._log_agent_anomaly(call, agent.state, agent_state)
 
